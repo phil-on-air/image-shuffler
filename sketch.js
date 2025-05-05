@@ -5,14 +5,15 @@ let squares = [];
 let imgPositions = [];
 let saveCounter = 0;
 let canvas;
+let displayScale = 1;
 
 function setup() {
-  // Create a canvas with default size that will be resized when image is loaded
-  canvas = createCanvas(400, 400);
+  // Create a canvas that fits the window
+  canvas = createCanvas(windowWidth * 0.8, windowHeight * 0.8);
   imageMode(CORNER);
   noStroke();
-  noSmooth(); // Disable anti-aliasing for cleaner edges
-  pixelDensity(1); // Ensure consistent pixel density
+  noSmooth();
+  pixelDensity(1);
   
   // Set up file input listener
   const fileInput = document.getElementById('file-input');
@@ -38,6 +39,22 @@ function setup() {
   
   // Handle dropped files
   dropZone.addEventListener('drop', handleDrop, false);
+}
+
+function windowResized() {
+  // Resize canvas when window is resized
+  resizeCanvas(windowWidth * 0.8, windowHeight * 0.8);
+  if (img) {
+    calculateDisplayScale();
+    reshuffleSquares();
+  }
+}
+
+function calculateDisplayScale() {
+  // Calculate scale to fit the image within the canvas
+  let scaleX = width / img.width;
+  let scaleY = height / img.height;
+  displayScale = min(scaleX, scaleY);
 }
 
 function preventDefaults(e) {
@@ -74,15 +91,14 @@ function handleFileSelect(event) {
 }
 
 function imageLoaded() {
-  // Resize canvas to match image dimensions
-  resizeCanvas(img.width, img.height);
+  calculateDisplayScale();
   
   // Reset positions and squares
   imgPositions = [];
   squares = [];
   
-  let squareWidth = width / cols;
-  let squareHeight = height / rows;
+  let squareWidth = img.width / cols;
+  let squareHeight = img.height / rows;
 
   // Create initial positions
   for (let i = 0; i < rows; i++) {
@@ -97,17 +113,13 @@ function imageLoaded() {
 }
 
 function draw() {
-  background(255);
+  // Always use dark background
+  background('#1a1a1a');
+  
   if (img) {
     for (let s of squares) {
       s.display();
     }
-  } else {
-    // Display instructions when no image is loaded
-    fill(0);
-    textAlign(CENTER, CENTER);
-    textSize(20);
-    text('Upload an image to begin', width/2, height/2);
   }
 }
 
@@ -128,8 +140,14 @@ class Square {
       this.h + 0.5
     );
     
-    // Draw the image section with a slight overlap
-    image(squareImg, this.pos.x, this.pos.y, this.w + 0.5, this.h + 0.5);
+    // Calculate display position and size
+    let displayX = (this.pos.x * displayScale) + (width - img.width * displayScale) / 2;
+    let displayY = (this.pos.y * displayScale) + (height - img.height * displayScale) / 2;
+    let displayW = (this.w + 0.5) * displayScale;
+    let displayH = (this.h + 0.5) * displayScale;
+    
+    // Draw the image section with scaling
+    image(squareImg, displayX, displayY, displayW, displayH);
   }
 }
 
@@ -143,8 +161,8 @@ function reshuffleSquares() {
   }
 
   let idx = 0;
-  let squareWidth = width / cols;
-  let squareHeight = height / rows;
+  let squareWidth = img.width / cols;
+  let squareHeight = img.height / rows;
   
   for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
@@ -160,7 +178,19 @@ function mousePressed() {
   if (img && mouseButton === LEFT) {
     reshuffleSquares();
   } else if (img && mouseButton === RIGHT) {
-    saveCanvas('shuffled_image_' + saveCounter, 'png');
+    // Create a temporary canvas for saving the full-size image
+    let saveCanvas = createGraphics(img.width, img.height);
+    saveCanvas.imageMode(CORNER);
+    saveCanvas.noSmooth();
+    
+    // Draw all squares at their original size
+    for (let s of squares) {
+      let squareImg = img.get(s.imgPos.x, s.imgPos.y, s.w + 0.5, s.h + 0.5);
+      saveCanvas.image(squareImg, s.pos.x, s.pos.y, s.w + 0.5, s.h + 0.5);
+    }
+    
+    // Save the full-size image
+    saveCanvas.save('shuffled_image_' + saveCounter + '.png');
     saveCounter++;
   }
 } 
